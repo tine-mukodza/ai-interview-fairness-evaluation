@@ -307,7 +307,7 @@ with st.sidebar:
 # ---------------------------------------------------------
 # TITLE + GLOBAL PROGRESS
 # ---------------------------------------------------------
-st.title("🤖 Human-Centered AI Interview Prototype")
+st.title("🤖 Human-Centered AI Interview Fairness Evaluation")
 st.caption("Explainable Fairness Prototype • Pace University Seidenberg")
 
 st.markdown(f"**Step {st.session_state.active_step} of 5**")
@@ -698,5 +698,6 @@ if st.session_state.followup_done:
             st.caption("You can close this window or use the reset button in the sidebar to start again.")
 
 st.caption("Prototype for IS 617 • Human-Centered Computing • Pace University Seidenberg")
+
 
 
