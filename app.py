@@ -9,7 +9,7 @@ import random
 # PAGE CONFIG + GLOBAL CSS
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="st.title("Human-Centered AI Interview Fairness Evaluation")
+    page_title="st.title("Human-Centered 'AI' Interview Fairness Evaluation")
 ",
     page_icon="🤖",
     layout="wide",
@@ -699,3 +699,4 @@ if st.session_state.followup_done:
             st.caption("You can close this window or use the reset button in the sidebar to start again.")
 
 st.caption("Prototype for IS 617 • Human-Centered Computing • Pace University Seidenberg")
+
