@@ -513,7 +513,6 @@ if st.session_state.resume_done:
         step2_label += "  ✅ (scenario + answer saved)"
 
     with st.expander(step2_label, expanded=st.session_state.exp2_open):
-        card("", icon="🎯", body="")
 
         scenario_names = [s["name"] for s in SCENARIOS]
 
@@ -737,7 +736,7 @@ if st.session_state.followup_done:
             height=80,
         )
 
-        if st.button("Save my feedback", key="btn_save_feedback", type="primary"):
+        if st.button("Save and submit feedback", key="btn_save_feedback", type="primary"):
             chosen_scenario = next(
                 s for s in SCENARIOS
                 if s["name"] == st.session_state.get("scenario_name", SCENARIOS[0]["name"])
