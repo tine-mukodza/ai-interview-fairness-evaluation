@@ -630,7 +630,7 @@ st.caption("Explainable Fairness Prototype • Pace University Seidenberg")
 with st.expander("What is this study about?", expanded=False):
     st.write(
         "- Test an AI interviewer that generates value-aligned follow-up questions.\n"
-        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up question.\n"
+        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up questions.\n"
         "- Ask you to rate how fair, appropriate, and clear the follow-up question feels.\n"
         "- No real name is required."
     )
