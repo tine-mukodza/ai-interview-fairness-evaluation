@@ -21,9 +21,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("AI Interview Transparency")
-st.caption("A Human-Centered HCI Case Study")
-
 st.markdown(
     """
     <style>
