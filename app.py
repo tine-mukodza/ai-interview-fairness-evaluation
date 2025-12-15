@@ -277,119 +277,212 @@ def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 
 def row_to_word_bytes(row: dict) -> bytes:
-    """Create a readable, single-session Word summary for participants/research appendix."""
+    """
+    Create a readable, single-session Word summary for participants / research appendix.
+
+    Formatting goal: clear key-value lines with bold labels and numbered responses where applicable.
+    """
     doc = Document()
-    doc.add_heading("AI Interview Prototype – Session Summary", level=1)
 
-    def add_kv(k, v):
+    def add_kv(label: str, value: str):
         p = doc.add_paragraph()
-        run = p.add_run(f"{k}: ")
+        run = p.add_run(f"{label}")
         run.bold = True
-        p.add_run(str(v) if v is not None else "")
+        p.add_run(f" {value if value is not None else ''}")
 
-    # High-level metadata
-    for k in ["timestamp", "participant_id", "scenario", "target_value"]:
-        if k in row:
-            add_kv(k, row.get(k, ""))
+    def add_numbered_response(text_value: str):
+        lines = [ln.strip() for ln in (text_value or "").splitlines() if ln.strip()]
+        if not lines:
+            doc.add_paragraph("(no response provided)")
+            return
+        if len(lines) == 1:
+            doc.add_paragraph(lines[0])
+            return
+        for ln in lines:
+            doc.add_paragraph(ln, style="List Number")
 
-    doc.add_paragraph("")
-    doc.add_heading("Inputs", level=2)
-    doc.add_heading("Resume / Summary (as provided)", level=3)
-    doc.add_paragraph(row.get("resume_text", "") or "")
-
-    doc.add_heading("Scenario Question (as shown)", level=3)
-    doc.add_paragraph(row.get("scenario_prompt_used", "") or "")
-
-    doc.add_heading("Scenario Response (as provided)", level=3)
-    doc.add_paragraph(row.get("answer_text", "") or "")
-
-    doc.add_paragraph("")
-    doc.add_heading("AI Follow-Up", level=2)
-    doc.add_heading("Follow-Up Question (generated)", level=3)
-    doc.add_paragraph(row.get("followup_question", "") or "")
-
-    doc.add_heading("Your Follow-Up Response", level=3)
-    doc.add_paragraph(row.get("followup_answer_text", "") or "")
-
-    doc.add_heading("Explainability (summary)", level=3)
-    doc.add_paragraph(row.get("reasoning_summary", "") or "")
+    # Title
+    title = doc.add_paragraph()
+    r = title.add_run("AI Interview Prototype – Session Summary")
+    r.bold = True
+    r.font.size = Pt(14)
 
     doc.add_paragraph("")
-    doc.add_heading("Fairness / Contestability (optional)", level=2)
-    add_kv("Flagged as unfair / uncomfortable", row.get("flag_unfair", ""))
 
-    if row.get("neutralized_question"):
-        doc.add_heading("Suggested neutral rephrasing", level=3)
-        doc.add_paragraph(row.get("neutralized_question", "") or "")
-
-    if row.get("unfair_comment"):
-        doc.add_heading("What felt unfair or uncomfortable", level=3)
-        doc.add_paragraph(row.get("unfair_comment", "") or "")
-
-    if row.get("alternative_question"):
-        doc.add_heading("Alternative question (generated)", level=3)
-        doc.add_paragraph(row.get("alternative_question", "") or "")
-
-    if row.get("alternative_answer_text"):
-        doc.add_heading("Your response to the alternative question", level=3)
-        doc.add_paragraph(row.get("alternative_answer_text", "") or "")
+    # Metadata
+    add_kv("Timestamp:", row.get("timestamp", ""))
+    add_kv("Participant ID:", row.get("participant_id", ""))
+    add_kv("Scenario:", row.get("scenario", ""))
+    add_kv("Target value:", row.get("target_value", ""))
 
     doc.add_paragraph("")
-    doc.add_heading("Ratings and Feedback", level=2)
-    for k in ["fairness_score", "relevance_score", "comfort_score", "trust_score", "accept_ai", "open_feedback"]:
-        if k in row:
-            add_kv(k, row.get(k, ""))
+    doc.add_paragraph("Inputs").runs[0].bold = True
 
-    # Basic styling
+    add_kv("Resume summary / text:", "")
+    resume_txt = (row.get("resume_text", "") or "").strip()
+    doc.add_paragraph(resume_txt if resume_txt else "(not provided)")
+
+    doc.add_paragraph("")
+    add_kv("Scenario Question:", "")
+    doc.add_paragraph((row.get("scenario_prompt_used", "") or "").strip() or "(not provided)")
+
+    doc.add_paragraph("")
+    add_kv("Scenario answer:", "")
+    add_numbered_response(row.get("answer_text", ""))
+
+    doc.add_paragraph("")
+    doc.add_paragraph("AI Follow-Up").runs[0].bold = True
+
+    add_kv("Follow-up question:", (row.get("followup_question", "") or "").strip())
+    doc.add_paragraph("")
+    add_kv("Follow-up answer:", "")
+    add_numbered_response(row.get("followup_answer_text", ""))
+
+    doc.add_paragraph("")
+    add_kv("Value tag:", row.get("value_tag", ""))
+    add_kv("Confidence:", row.get("confidence", ""))
+
+    doc.add_paragraph("")
+    add_kv("Reasoning summary:", "")
+    doc.add_paragraph((row.get("reasoning_summary", "") or "").strip() or "(not provided)")
+
+    doc.add_paragraph("")
+    doc.add_paragraph("Fairness / Contestability").runs[0].bold = True
+    add_kv("Flagged as unfair / uncomfortable:", str(row.get("flag_unfair", "")))
+
+    neutral = (row.get("neutralized_question", "") or "").strip()
+    if neutral:
+        add_kv("In any context you’re comfortable sharing:", neutral)
+
+    doc.add_paragraph("")
+    add_kv("Optional: What felt unfair or uncomfortable ?", "")
+    unfair = (row.get("unfair_comment", "") or "").strip()
+    doc.add_paragraph(unfair if unfair else "(not provided)")
+
+    alt_q = (row.get("alternative_question", "") or "").strip()
+    if alt_q:
+        doc.add_paragraph("")
+        add_kv("Optional: Alternative question:", alt_q)
+
+        doc.add_paragraph("")
+        add_kv("Alternative answer:", "")
+        add_numbered_response(row.get("alternative_answer_text", ""))
+
+    doc.add_paragraph("")
+    doc.add_paragraph("Ratings and Feedback").runs[0].bold = True
+    add_kv("Fairness score:", str(row.get("fairness_score", "")))
+    add_kv("Relevance score:", str(row.get("relevance_score", "")))
+    add_kv("Comfort score:", str(row.get("comfort_score", "")))
+    add_kv("Trust score:", str(row.get("trust_score", "")))
+    add_kv("Accept AI:", str(row.get("accept_ai", "")))
+
+    feedback = (row.get("open_feedback", "") or "").strip()
+    if feedback:
+        doc.add_paragraph("")
+        add_kv("Open feedback:", "")
+        doc.add_paragraph(feedback)
+
+    doc.add_paragraph("")
+    note = doc.add_paragraph()
+    note_run = note.add_run("Notes: ")
+    note_run.bold = True
+    note.add_run("Open feedback and full texts (resume/answer) are saved in the CSV/Excel downloads.")
+
+    # Styling
     for p in doc.paragraphs:
         for run in p.runs:
-            run.font.size = Pt(11)
+            if run.font.size is None:
+                run.font.size = Pt(11)
 
     bio = io.BytesIO()
     doc.save(bio)
     return bio.getvalue()
 
 def row_to_pdf_bytes(row: dict) -> bytes:
+    """
+    Create a readable single-session PDF summary with clear labels.
+    """
     bio = io.BytesIO()
     c = canvas.Canvas(bio, pagesize=letter)
     width, height = letter
 
     x = 50
-    y = height - 60
+    y = height - 55
     line_h = 14
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(x, y, "AI Interview Prototype – Session Summary")
-    y -= 26
-
-    c.setFont("Helvetica", 10)
-    def draw_kv(k, v):
+    def ensure_space(lines_needed=1):
         nonlocal y
-        text = f"{k}: {v if v is not None else ''}"
-        # wrap
+        if y < 70 + (lines_needed * line_h):
+            c.showPage()
+            y = height - 55
+
+    def draw_label_value(label: str, value: str, bold_label=True):
+        nonlocal y
+        ensure_space(1)
+        c.setFont("Helvetica-Bold" if bold_label else "Helvetica", 10)
+        c.drawString(x, y, label)
+        c.setFont("Helvetica", 10)
+        # wrap value
+        value = value if value is not None else ""
         max_chars = 95
-        parts = [text[i:i+max_chars] for i in range(0, len(text), max_chars)] or [""]
-        for part in parts:
-            if y < 70:
-                c.showPage()
-                y = height - 60
-                c.setFont("Helvetica", 10)
-            c.drawString(x, y, part)
+        parts = [value[i:i+max_chars] for i in range(0, len(value), max_chars)] or [""]
+        if parts:
+            c.drawString(x + 140, y, parts[0])
+        y -= line_h
+        for part in parts[1:]:
+            ensure_space(1)
+            c.drawString(x + 140, y, part)
             y -= line_h
 
-    for k in [
-        "timestamp", "participant_id", "scenario", "target_value",
-        "followup_question", "followup_answer_text", "value_tag", "confidence",
-        "fairness_score", "relevance_score", "comfort_score", "trust_score",
-        "unfair_comment",
-        "accept_ai", "flag_unfair"
-    ]:
-        if k in row:
-            draw_kv(k, row.get(k, ""))
+    # Title
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(x, y, "AI Interview Prototype – Session Summary")
+    y -= 24
 
-    y -= 10
-    c.setFont("Helvetica-Bold", 11)
-    draw_kv("Notes", "Open feedback and full texts (resume/answer) are saved in the CSV/Excel downloads.")
+    # Metadata
+    draw_label_value("Timestamp:", str(row.get("timestamp", "")))
+    draw_label_value("Participant ID:", str(row.get("participant_id", "")))
+    draw_label_value("Scenario:", str(row.get("scenario", "")))
+    draw_label_value("Target value:", str(row.get("target_value", "")))
+    y -= 8
+
+    # Follow-up
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "AI Follow-Up")
+    y -= 18
+
+    draw_label_value("Follow-up question:", str(row.get("followup_question", "")))
+    draw_label_value("Follow-up answer:", str(row.get("followup_answer_text", "")))
+    draw_label_value("Value tag:", str(row.get("value_tag", "")))
+    draw_label_value("Confidence:", str(row.get("confidence", "")))
+    y -= 8
+
+    # Fairness / alternative
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Fairness / Contestability")
+    y -= 18
+
+    draw_label_value("Flagged:", str(row.get("flag_unfair", "")))
+    neutral = str(row.get("neutralized_question", "") or "")
+    if neutral.strip():
+        draw_label_value("In any context you’re comfortable sharing:", neutral)
+
+    unfair = str(row.get("unfair_comment", "") or "")
+    if unfair.strip():
+        draw_label_value("What felt unfair or uncomfortable?:", unfair)
+
+    alt_q = str(row.get("alternative_question", "") or "")
+    if alt_q.strip():
+        draw_label_value("Alternative question:", alt_q)
+        draw_label_value("Alternative answer:", str(row.get("alternative_answer_text", "")))
+
+    y -= 8
+    c.setFont("Helvetica-Bold", 10)
+    ensure_space(2)
+    c.drawString(x, y, "Notes:")
+    c.setFont("Helvetica", 10)
+    c.drawString(x + 45, y, "Open feedback and full texts (resume/answer) are saved in the CSV/Excel downloads.")
+    y -= line_h
 
     c.save()
     return bio.getvalue()
@@ -525,7 +618,7 @@ st.caption("Explainable Fairness Prototype • Pace University Seidenberg")
 with st.expander("What is this study about?", expanded=False):
     st.write(
         "- Test an AI interviewer that generates value-aligned follow-up questions.\n"
-        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up questions.\n"
+        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up question.\n"
         "- Ask you to rate how fair, appropriate, and clear the follow-up question feels.\n"
         "- No real name is required."
     )
@@ -790,12 +883,11 @@ if st.session_state.followup_done:
         if flag_unfair:
             # 1) Start with a softened rephrasing (always begins with the comfort-preface)
             neutral_q = neutralize_question(st.session_state["followup"])
-            st.info("Suggested neutral rephrasing:")
-            st.write(f"**{neutral_q}**")
+            st.info("In any context you’re comfortable sharing:")
 
             # 2) Optional: what felt unfair / uncomfortable (about original or rephrased)
             st.text_area(
-                "Optional: What felt unfair or uncomfortable (about the original or the rephrased question)?",
+                "Optional: What felt unfair or uncomfortable ?",
                 key="unfair_details",
                 height=90,
                 placeholder="Example: too personal, unclear, stereotype risk, or not relevant to my response…",
@@ -948,4 +1040,5 @@ if st.session_state.followup_done:
             st.caption("You can close this window or use the reset button in the sidebar to start again.")
 
 st.caption("Prototype for IS 617 • Human-Centered Computing • Pace University Seidenberg")
+
 
