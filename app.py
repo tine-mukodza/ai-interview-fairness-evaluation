@@ -457,6 +457,18 @@ def row_to_pdf_bytes(row: dict) -> bytes:
     draw_label_value("Confidence:", str(row.get("confidence", "")))
     y -= 8
 
+    # Ratings (participant feedback)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, "Ratings")
+    y -= 18
+    draw_label_value("Fairness score:", str(row.get("fairness_score", "")))
+    draw_label_value("Relevance score:", str(row.get("relevance_score", "")))
+    draw_label_value("Comfort score:", str(row.get("comfort_score", "")))
+    draw_label_value("Trust score:", str(row.get("trust_score", "")))
+    draw_label_value("Accept AI:", str(row.get("accept_ai", "")))
+    draw_label_value("Flag unfair:", str(row.get("flag_unfair", "")))
+    y -= 8
+
     # Fairness / alternative
     c.setFont("Helvetica-Bold", 12)
     c.drawString(x, y, "Fairness / Contestability")
