@@ -239,7 +239,6 @@ def neutralize_question(q: str) -> str:
     """Softens a question if the participant flags it as unfair."""
     if not q:
         return ""
-    return "In any context you’re comfortable sharing: "
 
 
 def generate_alternative_followup(current_followup: str, value_tag: str) -> str:
@@ -319,7 +318,7 @@ def row_to_word_bytes(row: dict) -> bytes:
     add_kv("Flagged as unfair / uncomfortable", row.get("flag_unfair", ""))
 
     if row.get("neutralized_question"):
-        doc.add_heading("Suggested neutral rephrasing", level=3)
+        doc.add_heading("In any context you’re comfortable sharing: ", level=3)
         doc.add_paragraph(row.get("neutralized_question", "") or "")
 
     if row.get("unfair_comment"):
