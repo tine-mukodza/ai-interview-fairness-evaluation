@@ -16,10 +16,13 @@ from reportlab.pdfgen import canvas
 # PAGE CONFIG + GLOBAL CSS
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Human-Centered AI Interview Prototype",
-    page_icon="🤖",
-    layout="wide",
+    page_title="AI Interview Transparency (HCI Case Study)",
+    page_icon="🧠",
+    layout="wide"
 )
+
+st.title("AI Interview Transparency")
+st.caption("A Human-Centered HCI Case Study")
 
 st.markdown(
     """
