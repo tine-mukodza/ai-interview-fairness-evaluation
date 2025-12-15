@@ -90,6 +90,19 @@ st.markdown(
 
     /* Prevent "hand" cursor on custom elements */
     .step-wrap, .step-labels { cursor: default !important; }
+    
+    /* Select-like display (non-editable, looks like dropdown) */
+    .select-like {
+        padding: 0.55rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(148,163,184,0.35);
+        background: rgba(2,6,23,0.85);
+        color: #e5e7eb;
+        font-size: 0.95rem;
+        line-height: 1.35;
+        user-select: text;
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -131,27 +144,27 @@ VALUES = {
 SCENARIOS = [
     {
         "name": "Scenario 1 – Collaboration (Team Conflict)",
-        "prompt": "Tell me about a time you worked with a team to solve a difficult problem.",
+        "prompt": "Tell me about a time you worked with a team to solve a difficult problem?",
         "value": "Collaboration",
     },
     {
         "name": "Scenario 2 – Integrity (Ethical Dilemma)",
-        "prompt": "Describe a situation where you had to choose the ethical option under pressure.",
+        "prompt": "Describe a situation where you had to choose the ethical option under pressure?",
         "value": "Integrity",
     },
     {
         "name": "Scenario 3 – Ownership (Taking Initiative)",
-        "prompt": "Tell me about a time you took initiative without being asked.",
+        "prompt": "Tell me about a time you took initiative without being asked?",
         "value": "Ownership",
     },
     {
         "name": "Scenario 4 – Data Responsibility (Handling Sensitive Info)",
-        "prompt": "Describe a moment when you handled sensitive data or ensured data accuracy.",
+        "prompt": "Describe a moment when you handled sensitive data or ensured data accuracy?",
         "value": "Data Responsibility",
     },
     {
         "name": "Scenario 5 – Customer Focus (User Impact)",
-        "prompt": "Tell me about a time you improved a customer or user experience.",
+        "prompt": "Tell me about a time you improved a customer or user experience?",
         "value": "Customer Focus",
     },
 ]
@@ -228,6 +241,17 @@ def neutralize_question(q: str) -> str:
         return ""
     return "In any context you’re comfortable sharing, " + q[0].lower() + q[1:]
 
+
+def generate_alternative_followup(current_followup: str, value_tag: str) -> str:
+    """Return a different follow-up from the same value bank (simple alternative)."""
+    bank = FOLLOWUP_BANK.get(value_tag, [])
+    if not bank:
+        return ""
+    # Prefer an option different from the current follow-up
+    options = [q for q in bank if q != current_followup] or bank
+    return random.choice(options)
+
+
 # ---------------------------------------------------------
 # LOGGING
 # ---------------------------------------------------------
@@ -251,7 +275,9 @@ def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
         df.to_excel(writer, index=False, sheet_name="logs")
     return bio.getvalue()
 
+
 def row_to_word_bytes(row: dict) -> bytes:
+    """Create a readable, single-session Word summary for participants/research appendix."""
     doc = Document()
     doc.add_heading("AI Interview Prototype – Session Summary", level=1)
 
@@ -261,24 +287,60 @@ def row_to_word_bytes(row: dict) -> bytes:
         run.bold = True
         p.add_run(str(v) if v is not None else "")
 
-    # Core fields (keep it readable)
-    for k in [
-        "timestamp", "participant_id", "scenario", "scenario_prompt_used", "target_value",
-        "followup_question", "value_tag", "confidence",
-        "fairness_score", "relevance_score", "comfort_score", "trust_score",
-        "accept_ai", "flag_unfair", "unfair_comment", "neutralized_question", "open_feedback"
-    ]:
+    # High-level metadata
+    for k in ["timestamp", "participant_id", "scenario", "target_value"]:
         if k in row:
             add_kv(k, row.get(k, ""))
 
     doc.add_paragraph("")
-    doc.add_heading("Resume Text (as provided)", level=2)
+    doc.add_heading("Inputs", level=2)
+    doc.add_heading("Resume / Summary (as provided)", level=3)
     doc.add_paragraph(row.get("resume_text", "") or "")
 
-    doc.add_heading("Answer Text (as provided)", level=2)
+    doc.add_heading("Scenario Question (as shown)", level=3)
+    doc.add_paragraph(row.get("scenario_prompt_used", "") or "")
+
+    doc.add_heading("Scenario Response (as provided)", level=3)
     doc.add_paragraph(row.get("answer_text", "") or "")
 
-    # basic styling
+    doc.add_paragraph("")
+    doc.add_heading("AI Follow-Up", level=2)
+    doc.add_heading("Follow-Up Question (generated)", level=3)
+    doc.add_paragraph(row.get("followup_question", "") or "")
+
+    doc.add_heading("Your Follow-Up Response", level=3)
+    doc.add_paragraph(row.get("followup_answer_text", "") or "")
+
+    doc.add_heading("Explainability (summary)", level=3)
+    doc.add_paragraph(row.get("reasoning_summary", "") or "")
+
+    doc.add_paragraph("")
+    doc.add_heading("Fairness / Contestability (optional)", level=2)
+    add_kv("Flagged as unfair / uncomfortable", row.get("flag_unfair", ""))
+
+    if row.get("neutralized_question"):
+        doc.add_heading("Suggested neutral rephrasing", level=3)
+        doc.add_paragraph(row.get("neutralized_question", "") or "")
+
+    if row.get("unfair_comment"):
+        doc.add_heading("What felt unfair or uncomfortable", level=3)
+        doc.add_paragraph(row.get("unfair_comment", "") or "")
+
+    if row.get("alternative_question"):
+        doc.add_heading("Alternative question (generated)", level=3)
+        doc.add_paragraph(row.get("alternative_question", "") or "")
+
+    if row.get("alternative_answer_text"):
+        doc.add_heading("Your response to the alternative question", level=3)
+        doc.add_paragraph(row.get("alternative_answer_text", "") or "")
+
+    doc.add_paragraph("")
+    doc.add_heading("Ratings and Feedback", level=2)
+    for k in ["fairness_score", "relevance_score", "comfort_score", "trust_score", "accept_ai", "open_feedback"]:
+        if k in row:
+            add_kv(k, row.get(k, ""))
+
+    # Basic styling
     for p in doc.paragraphs:
         for run in p.runs:
             run.font.size = Pt(11)
@@ -317,8 +379,9 @@ def row_to_pdf_bytes(row: dict) -> bytes:
 
     for k in [
         "timestamp", "participant_id", "scenario", "target_value",
-        "followup_question", "value_tag", "confidence",
+        "followup_question", "followup_answer_text", "value_tag", "confidence",
         "fairness_score", "relevance_score", "comfort_score", "trust_score",
+        "unfair_comment",
         "accept_ai", "flag_unfair"
     ]:
         if k in row:
@@ -341,6 +404,9 @@ defaults = {
     "resume_done": False,
     "scenario_answer_done": False,
     "followup_answer_text": "",
+    "unfair_details": "",
+    "alternative_question": "",
+    "alternative_answer_text": "",
     "followup_generated": False,
     "followup_response_done": False,
     "followup_done": False,
@@ -418,6 +484,38 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
+    st.markdown("---")
+    st.subheader("Researcher view (optional)")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    if admin_password:
+        entered = st.text_input("Admin password", type="password", key="admin_pw")
+        if entered == admin_password:
+            if os.path.exists(LOG_FILE):
+                df_logs = pd.read_csv(LOG_FILE)
+                st.metric("Total submissions", len(df_logs))
+                if "participant_id" in df_logs.columns:
+                    non_empty = df_logs["participant_id"].fillna("").astype(str).str.strip()
+                    st.metric("Unique participant IDs", non_empty[non_empty != ""].nunique())
+                if "scenario" in df_logs.columns:
+                    st.caption("Scenario counts")
+                    st.dataframe(df_logs["scenario"].value_counts().rename_axis("scenario").reset_index(name="count"), use_container_width=True)
+
+                with open(LOG_FILE, "rb") as f:
+                    st.download_button("Download research CSV (all sessions)", data=f, file_name="interview_logs.csv", mime="text/csv")
+
+                st.download_button(
+                    "Download research Excel (all sessions)",
+                    data=df_to_excel_bytes(df_logs),
+                    file_name="interview_logs.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            else:
+                st.info("No submissions yet (log file not found).")
+        elif entered:
+            st.error("Incorrect password.")
+    else:
+        st.caption("To enable researcher summaries, set an environment variable ADMIN_PASSWORD on the server.")
+
 # ---------------------------------------------------------
 # HEADER + STUDY ABOUT (moved up) + PROGRESS (redesigned)
 # ---------------------------------------------------------
@@ -427,7 +525,7 @@ st.caption("Explainable Fairness Prototype • Pace University Seidenberg")
 with st.expander("What is this study about?", expanded=False):
     st.write(
         "- Test an AI interviewer that generates value-aligned follow-up questions.\n"
-        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up.\n"
+        "- Demonstrate transparently how the AI uses your resume text and your answer to create the follow-up question.\n"
         "- Ask you to rate how fair, appropriate, and clear the follow-up question feels.\n"
         "- No real name is required."
     )
@@ -528,12 +626,11 @@ if st.session_state.resume_done:
             st.session_state.scenario_prompt = base_scenario["prompt"]
             st.session_state.prev_scenario_name = st.session_state.scenario_name
 
-        # Editable scenario prompt (clickable)
-        st.text_area(
-            "Scenario prompt",
-            value=st.session_state.get("scenario_prompt", ""),
-            height=90,
-            disabled=True,
+        # Scenario question (read-only; styled like a dropdown)
+        st.markdown("**Scenario Question**")
+        st.markdown(
+            f"<div class='select-like'>{st.session_state.get('scenario_prompt', '')}</div>",
+            unsafe_allow_html=True,
         )
 
         # Participant answer is part of Step 2 now
@@ -691,20 +788,45 @@ if st.session_state.followup_done:
         unfair_comment = ""
         neutral_q = ""
         if flag_unfair:
+            # 1) Start with a softened rephrasing (always begins with the comfort-preface)
             neutral_q = neutralize_question(st.session_state["followup"])
-            st.warning("Optional neutral alternative:")
+            st.info("Suggested neutral rephrasing:")
             st.write(f"**{neutral_q}**")
 
+            # 2) Optional: what felt unfair / uncomfortable (about original or rephrased)
             st.text_area(
-                "Optional: Your response to the neutral alternative",
-                key="neutral_followup_answer_text",
-                height=110,
-                placeholder="You may respond here if you prefer this version of the question.",
+                "Optional: What felt unfair or uncomfortable (about the original or the rephrased question)?",
+                key="unfair_details",
+                height=90,
+                placeholder="Example: too personal, unclear, stereotype risk, or not relevant to my response…",
             )
+            unfair_comment = st.session_state.get("unfair_details", "")
 
-            unfair_comment = st.text_input(
-                "Optional: What, if anything, felt unfair or uncomfortable?",
-                placeholder="E.g., too personal, unclear, stereotype risk…",
+            # 3) Optional: alternative question (based on the selected scenario)
+            st.markdown("**Optional: Alternative question**")
+            col_alt_a, col_alt_b = st.columns([1, 3])
+            with col_alt_a:
+                if st.button("Generate alternative", key="btn_alt_q"):
+                    alt = generate_alternative_followup(
+                        current_followup=st.session_state.get("followup", ""),
+                        value_tag=st.session_state.get("value_tag", "Collaboration"),
+                    )
+                    st.session_state["alternative_question"] = alt
+                    st.session_state["alternative_answer_text"] = ""
+                    st.rerun()
+
+            with col_alt_b:
+                alt_q = st.session_state.get("alternative_question", "")
+                if alt_q:
+                    st.write(f"**{alt_q}**")
+                else:
+                    st.caption("Click “Generate alternative” to view another follow-up question aligned to the same scenario value.")
+
+            st.text_area(
+                "Optional: Your response to the alternative question",
+                key="alternative_answer_text",
+                height=110,
+                placeholder="If you prefer the alternative question, you may respond here…",
             )
 
         st.markdown("#### Quick ratings")
@@ -759,6 +881,7 @@ if st.session_state.followup_done:
                 "target_value": chosen_scenario["value"],
                 "resume_text": st.session_state.get("resume_text", ""),
                 "answer_text": st.session_state.get("answer_text", ""),
+                "followup_answer_text": st.session_state.get("followup_answer_text", ""),
                 "followup_question": st.session_state.get("followup", ""),
                 "reasoning_summary": st.session_state.get("reasoning", ""),
                 "resume_keywords": ", ".join(st.session_state.get("resume_kws", [])),
@@ -771,8 +894,9 @@ if st.session_state.followup_done:
                 "trust_score": trust_score,
                 "flag_unfair": flag_unfair,
                 "unfair_comment": unfair_comment,
+                "alternative_question": st.session_state.get("alternative_question", ""),
+                "alternative_answer_text": st.session_state.get("alternative_answer_text", ""),
                 "neutralized_question": neutral_q,
-                "neutral_followup_response": st.session_state.get("neutral_followup_answer_text", ""),
                 "accept_ai": accept_ai,
                 "open_feedback": open_feedback,
             }
