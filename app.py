@@ -7,21 +7,10 @@ import re
 import random
 import io
 
-
-# Optional export dependencies (avoid crashing on Streamlit Cloud if missing)
-HAS_DOCX = True
-HAS_REPORTLAB = True
-try:
-    from docx import Document
-    from docx.shared import Pt
-except Exception:
-    HAS_DOCX = False
-
-try:
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
-except Exception:
-    HAS_REPORTLAB = False
+from docx import Document
+from docx.shared import Pt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 # ---------------------------------------------------------
 # PAGE CONFIG + GLOBAL CSS
@@ -142,27 +131,27 @@ VALUES = {
 SCENARIOS = [
     {
         "name": "Scenario 1 – Collaboration (Team Conflict)",
-        "prompt": "Tell me about a time you worked with a team to solve a difficult problem?",
+        "prompt": "Tell me about a time you worked with a team to solve a difficult problem.",
         "value": "Collaboration",
     },
     {
         "name": "Scenario 2 – Integrity (Ethical Dilemma)",
-        "prompt": "Describe a situation where you had to choose the ethical option under pressure?",
+        "prompt": "Describe a situation where you had to choose the ethical option under pressure.",
         "value": "Integrity",
     },
     {
         "name": "Scenario 3 – Ownership (Taking Initiative)",
-        "prompt": "Tell me about a time you took initiative without being asked?",
+        "prompt": "Tell me about a time you took initiative without being asked.",
         "value": "Ownership",
     },
     {
         "name": "Scenario 4 – Data Responsibility (Handling Sensitive Info)",
-        "prompt": "Describe a moment when you handled sensitive data or ensured data accuracy?",
+        "prompt": "Describe a moment when you handled sensitive data or ensured data accuracy.",
         "value": "Data Responsibility",
     },
     {
         "name": "Scenario 5 – Customer Focus (User Impact)",
-        "prompt": "Tell me about a time you improved a customer or user experience?",
+        "prompt": "Tell me about a time you improved a customer or user experience.",
         "value": "Customer Focus",
     },
 ]
@@ -233,16 +222,6 @@ def generate_followup(resume_text: str, answer_text: str, chosen_value: str):
 
     return followup, reasoning, value_tag, confidence, resume_kws, answer_kws
 
-
-def generate_alternative_followup(chosen_value: str, current_followup: str = "") -> str:
-    """Generate a different (alternative) follow-up question for the same scenario value."""
-    bank = FOLLOWUP_BANK.get(chosen_value, [])
-    if not bank:
-        return ""
-    options = [q for q in bank if q != current_followup] or bank
-    return random.choice(options)
-
-
 def neutralize_question(q: str) -> str:
     """Softens a question if the participant flags it as unfair."""
     if not q:
@@ -273,18 +252,8 @@ def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
     return bio.getvalue()
 
 def row_to_word_bytes(row: dict) -> bytes:
-    """Create a clean, human-readable Word summary for a single session."""
-    if not HAS_DOCX:
-        return b""
-
     doc = Document()
     doc.add_heading("AI Interview Prototype – Session Summary", level=1)
-
-    def add_heading(text):
-        doc.add_heading(text, level=2)
-
-    def add_para(text):
-        doc.add_paragraph(text or "")
 
     def add_kv(k, v):
         p = doc.add_paragraph()
@@ -292,66 +261,24 @@ def row_to_word_bytes(row: dict) -> bytes:
         run.bold = True
         p.add_run(str(v) if v is not None else "")
 
-    # ---- Overview ----
-    add_heading("Overview")
-    add_kv("Timestamp", row.get("timestamp", ""))
-    add_kv("Participant ID", row.get("participant_id", ""))
-    add_kv("Scenario", row.get("scenario", ""))
-    add_kv("Target value", row.get("target_value", ""))
-
-    # ---- Inputs ----
-    add_heading("Inputs (as provided)")
-    add_kv("Scenario question used", row.get("scenario_prompt_used", ""))
+    # Core fields (keep it readable)
+    for k in [
+        "timestamp", "participant_id", "scenario", "scenario_prompt_used", "target_value",
+        "followup_question", "value_tag", "confidence",
+        "fairness_score", "relevance_score", "comfort_score", "trust_score",
+        "accept_ai", "flag_unfair", "unfair_comment", "neutralized_question", "open_feedback"
+    ]:
+        if k in row:
+            add_kv(k, row.get(k, ""))
 
     doc.add_paragraph("")
-    doc.add_heading("Resume / summary text", level=3)
-    add_para(row.get("resume_text", ""))
+    doc.add_heading("Resume Text (as provided)", level=2)
+    doc.add_paragraph(row.get("resume_text", "") or "")
 
-    doc.add_heading("Response to scenario question", level=3)
-    add_para(row.get("answer_text", ""))
+    doc.add_heading("Answer Text (as provided)", level=2)
+    doc.add_paragraph(row.get("answer_text", "") or "")
 
-    # ---- AI output ----
-    add_heading("AI follow-up")
-    add_kv("Follow-up question", row.get("followup_question", ""))
-    doc.add_paragraph("")
-    doc.add_heading("Your response to the follow-up question", level=3)
-    add_para(row.get("followup_response", ""))
-
-    # ---- Transparency ----
-    add_heading("Transparency (explainability)")
-    add_kv("System value guess (from answer)", f"{row.get('value_tag','')} ({row.get('confidence','')})")
-    add_kv("Resume keywords", row.get("resume_keywords", ""))
-    add_kv("Answer keywords", row.get("answer_keywords", ""))
-    doc.add_paragraph("")
-    doc.add_heading("Reasoning summary", level=3)
-    add_para(row.get("reasoning_summary", ""))
-
-    # ---- Flagging & alternatives ----
-    add_heading("Flagging & alternatives (if used)")
-    add_kv("Flagged as unfair / uncomfortable", row.get("flag_unfair", ""))
-    add_kv("What felt unfair / uncomfortable", row.get("unfair_comment", ""))
-    add_kv("Neutral rephrasing shown", row.get("neutralized_question", ""))
-    doc.add_paragraph("")
-    doc.add_heading("Your response to the neutral rephrasing", level=3)
-    add_para(row.get("neutral_followup_response", ""))
-
-    add_kv("Alternative question", row.get("alternative_question", ""))
-    doc.add_paragraph("")
-    doc.add_heading("Your response to the alternative question", level=3)
-    add_para(row.get("alternative_response", ""))
-
-    # ---- Ratings ----
-    add_heading("Ratings & feedback")
-    add_kv("Fairness", row.get("fairness_score", ""))
-    add_kv("Relevance", row.get("relevance_score", ""))
-    add_kv("Comfort", row.get("comfort_score", ""))
-    add_kv("Trust", row.get("trust_score", ""))
-    add_kv("Accept AI in hiring", row.get("accept_ai", ""))
-    doc.add_paragraph("")
-    doc.add_heading("Open feedback", level=3)
-    add_para(row.get("open_feedback", ""))
-
-    # styling
+    # basic styling
     for p in doc.paragraphs:
         for run in p.runs:
             run.font.size = Pt(11)
@@ -360,12 +287,7 @@ def row_to_word_bytes(row: dict) -> bytes:
     doc.save(bio)
     return bio.getvalue()
 
-
 def row_to_pdf_bytes(row: dict) -> bytes:
-    """Create a simple PDF summary for a single session."""
-    if not HAS_REPORTLAB:
-        return b""
-
     bio = io.BytesIO()
     c = canvas.Canvas(bio, pagesize=letter)
     width, height = letter
@@ -379,9 +301,10 @@ def row_to_pdf_bytes(row: dict) -> bytes:
     y -= 26
 
     c.setFont("Helvetica", 10)
-
-    def draw_lines(text):
+    def draw_kv(k, v):
         nonlocal y
+        text = f"{k}: {v if v is not None else ''}"
+        # wrap
         max_chars = 95
         parts = [text[i:i+max_chars] for i in range(0, len(text), max_chars)] or [""]
         for part in parts:
@@ -392,34 +315,21 @@ def row_to_pdf_bytes(row: dict) -> bytes:
             c.drawString(x, y, part)
             y -= line_h
 
-    def draw_kv(k, v):
-        draw_lines(f"{k}: {v if v is not None else ''}")
-
     for k in [
-        ("Timestamp", row.get("timestamp", "")),
-        ("Participant ID", row.get("participant_id", "")),
-        ("Scenario", row.get("scenario", "")),
-        ("Scenario question used", row.get("scenario_prompt_used", "")),
-        ("Target value", row.get("target_value", "")),
-        ("Follow-up question", row.get("followup_question", "")),
-        ("Your follow-up response", row.get("followup_response", "")),
-        ("Flagged unfair/uncomfortable", row.get("flag_unfair", "")),
-        ("What felt unfair/uncomfortable", row.get("unfair_comment", "")),
-        ("Fairness", row.get("fairness_score", "")),
-        ("Relevance", row.get("relevance_score", "")),
-        ("Comfort", row.get("comfort_score", "")),
-        ("Trust", row.get("trust_score", "")),
-        ("Accept AI in hiring", row.get("accept_ai", "")),
+        "timestamp", "participant_id", "scenario", "target_value",
+        "followup_question", "value_tag", "confidence",
+        "fairness_score", "relevance_score", "comfort_score", "trust_score",
+        "accept_ai", "flag_unfair"
     ]:
-        draw_kv(k[0], k[1])
+        if k in row:
+            draw_kv(k, row.get(k, ""))
 
-    y -= 8
-    c.setFont("Helvetica-Oblique", 9)
-    draw_lines("Tip: For full texts (resume, scenario response, and all answers), use the CSV or Excel download.")
+    y -= 10
+    c.setFont("Helvetica-Bold", 11)
+    draw_kv("Notes", "Open feedback and full texts (resume/answer) are saved in the CSV/Excel downloads.")
 
     c.save()
     return bio.getvalue()
-
 
 # ---------------------------------------------------------
 # SESSION STATE (4 steps after consent)
@@ -431,8 +341,6 @@ defaults = {
     "resume_done": False,
     "scenario_answer_done": False,
     "followup_answer_text": "",
-    "alternative_question": "",
-    "alternative_response_text": "",
     "followup_generated": False,
     "followup_response_done": False,
     "followup_done": False,
@@ -506,42 +414,6 @@ with st.sidebar:
     st.caption("Target values in this study:")
     st.write(", ".join(VALUES.keys()))
     st.markdown("---")
-# Researcher view (optional): shows aggregate stats if you know the password.
-with st.expander("Researcher view (aggregate results)", expanded=False):
-    st.caption("For the study team only. Uses local logs on this app instance.")
-    pw = st.text_input("Researcher password", type="password", key="admin_pw")
-    expected = os.environ.get("ADMIN_PASSWORD", "")
-    if expected and pw == expected and os.path.exists(LOG_FILE):
-        df_logs = pd.read_csv(LOG_FILE)
-        st.success(f"Loaded {len(df_logs)} submitted session(s).")
-
-        # Basic counts
-        non_empty_pid = df_logs["participant_id"].fillna("").astype(str).str.strip()
-        unique_p = non_empty_pid[non_empty_pid != ""].nunique()
-        st.metric("Total submitted sessions", len(df_logs))
-        st.metric("Unique participant IDs (non-empty)", unique_p)
-
-        # Scenario counts
-        st.markdown("**Scenario distribution**")
-        st.dataframe(df_logs["scenario"].value_counts().rename_axis("scenario").reset_index(name="count"), use_container_width=True)
-
-        st.download_button(
-            "Download logs (CSV)",
-            data=df_logs.to_csv(index=False).encode("utf-8"),
-            file_name="interview_logs.csv",
-            mime="text/csv",
-        )
-        st.download_button(
-            "Download logs (Excel)",
-            data=df_to_excel_bytes(df_logs),
-            file_name="interview_logs.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    elif expected and pw and pw != expected:
-        st.error("Incorrect password.")
-    else:
-        st.info("To enable: set an environment variable ADMIN_PASSWORD, and collect at least one submission.")
-
     if st.button("Reset session"):
         st.session_state.clear()
         st.rerun()
@@ -658,7 +530,7 @@ if st.session_state.resume_done:
 
         # Editable scenario prompt (clickable)
         st.text_area(
-            "Scenario Question",
+            "Scenario prompt",
             value=st.session_state.get("scenario_prompt", ""),
             height=90,
             disabled=True,
@@ -818,53 +690,23 @@ if st.session_state.followup_done:
 
         unfair_comment = ""
         neutral_q = ""
-        
-
         if flag_unfair:
-            # 1) Neutralized version (always shown first)
             neutral_q = neutralize_question(st.session_state["followup"])
-            st.info("In any context you’re comfortable sharing:")
+            st.warning("Optional neutral alternative:")
             st.write(f"**{neutral_q}**")
 
-            # 2) What felt unfair / uncomfortable (comment first)
-            unfair_comment = st.text_area(
-                "Optional: What felt unfair or uncomfortable about the original or alternative questions?",
-                height=80,
-                placeholder="E.g., too personal, unclear, irrelevant, stereotype risk…",
-            )
-
-            # 3) Response bubble (if they prefer answering the neutralized version)
             st.text_area(
-                "Optional: Your response to the neutral rephrasing",
+                "Optional: Your response to the neutral alternative",
                 key="neutral_followup_answer_text",
                 height=110,
                 placeholder="You may respond here if you prefer this version of the question.",
             )
 
-            # 4) Alternative question (based on the selected scenario)
-            st.markdown("---")
-            st.markdown("**Optional: Alternative question (based on the same scenario)**")
+            unfair_comment = st.text_input(
+                "Optional: What, if anything, felt unfair or uncomfortable?",
+                placeholder="E.g., too personal, unclear, stereotype risk…",
+            )
 
-            alt_btn = st.button("Generate an alternative question", key="btn_alt_q")
-            if alt_btn:
-                chosen_scenario = next(
-                    s for s in SCENARIOS
-                    if s["name"] == st.session_state.get("scenario_name", SCENARIOS[0]["name"])
-                )
-                st.session_state["alternative_question"] = generate_alternative_followup(
-                    chosen_scenario["value"],
-                    current_followup=st.session_state.get("followup", "")
-                )
-
-            if st.session_state.get("alternative_question"):
-                st.write(f"**{st.session_state['alternative_question']}**")
-
-                st.text_area(
-                    "Optional: Your response to the alternative question",
-                    key="alternative_response_text",
-                    height=110,
-                    placeholder="You may respond here if you prefer the alternative question.",
-                )
         st.markdown("#### Quick ratings")
         st.caption("Rating guide: **1 = very low / negative**, **3 = neutral**, **5 = very high / positive**.")
 
@@ -918,7 +760,6 @@ if st.session_state.followup_done:
                 "resume_text": st.session_state.get("resume_text", ""),
                 "answer_text": st.session_state.get("answer_text", ""),
                 "followup_question": st.session_state.get("followup", ""),
-                "followup_response": st.session_state.get("followup_answer_text", ""),
                 "reasoning_summary": st.session_state.get("reasoning", ""),
                 "resume_keywords": ", ".join(st.session_state.get("resume_kws", [])),
                 "answer_keywords": ", ".join(st.session_state.get("answer_kws", [])),
@@ -932,8 +773,6 @@ if st.session_state.followup_done:
                 "unfair_comment": unfair_comment,
                 "neutralized_question": neutral_q,
                 "neutral_followup_response": st.session_state.get("neutral_followup_answer_text", ""),
-                "alternative_question": st.session_state.get("alternative_question", ""),
-                "alternative_response": st.session_state.get("alternative_response_text", ""),
                 "accept_ai": accept_ai,
                 "open_feedback": open_feedback,
             }
