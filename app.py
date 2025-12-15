@@ -239,7 +239,7 @@ def neutralize_question(q: str) -> str:
     """Softens a question if the participant flags it as unfair."""
     if not q:
         return ""
-    return "In any context you’re comfortable sharing, " + q[0].lower() + q[1:]
+    return "In any context you’re comfortable sharing: "
 
 
 def generate_alternative_followup(current_followup: str, value_tag: str) -> str:
@@ -795,7 +795,7 @@ if st.session_state.followup_done:
 
             # 2) Optional: what felt unfair / uncomfortable (about original or rephrased)
             st.text_area(
-                "Optional: What felt unfair or uncomfortable (about the original or the rephrased question)?",
+                "What felt unfair or uncomfortable?",
                 key="unfair_details",
                 height=90,
                 placeholder="Example: too personal, unclear, stereotype risk, or not relevant to my response…",
