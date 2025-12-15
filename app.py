@@ -624,8 +624,8 @@ with st.sidebar:
 # ---------------------------------------------------------
 # HEADER + STUDY ABOUT (moved up) + PROGRESS (redesigned)
 # ---------------------------------------------------------
-st.title("🤖 Human-Centered AI Interview Prototype")
-st.caption("Explainable Fairness Prototype • Pace University Seidenberg")
+st.title("AI Interview Transparency")
+st.caption("A Human-Centered HCI Case Study")
 
 with st.expander("What is this study about?", expanded=False):
     st.write(
@@ -1052,5 +1052,6 @@ if st.session_state.followup_done:
             st.caption("You can close this window or use the reset button in the sidebar to start again.")
 
 st.caption("Prototype for IS 617 • Human-Centered Computing • Pace University Seidenberg")
+
 
 
